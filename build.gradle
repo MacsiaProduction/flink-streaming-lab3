@@ -1,0 +1,99 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+plugins {
+    id "org.jetbrains.kotlin.jvm" version "2.1.20"
+    id "application"
+    id "com.github.johnrengelman.shadow" version "7.1.2"
+}
+
+group = "lab3"
+version = "0.1.0"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+def flinkVersion = "2.0.1"
+def kafkaConnectorVersion = "4.0.1-2.0"
+def jacksonVersion = "2.18.3"
+def log4jVersion = "2.24.3"
+
+configurations {
+    flinkShadowJar {
+        exclude group: "org.apache.flink", module: "force-shading"
+        exclude group: "com.google.code.findbugs", module: "jsr305"
+        // Keep slf4j in the uber JAR so `java -jar ... producer` works outside the Flink lib/ classpath.
+        exclude group: "org.apache.logging.log4j"
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://repository.apache.org/content/repositories/snapshots"
+        mavenContent { snapshotsOnly() }
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
+    implementation "org.apache.flink:flink-clients:${flinkVersion}"
+    // flink-connector-kafka marks this as `provided`; include explicitly for :run and the shadow JAR.
+    implementation "org.apache.flink:flink-connector-base:${flinkVersion}"
+    implementation "org.apache.flink:flink-connector-kafka:${kafkaConnectorVersion}"
+
+    flinkShadowJar "org.apache.flink:flink-connector-base:${flinkVersion}"
+    flinkShadowJar "org.apache.flink:flink-connector-kafka:${kafkaConnectorVersion}"
+    flinkShadowJar "com.fasterxml.jackson.module:jackson-module-kotlin:${jacksonVersion}"
+    flinkShadowJar "org.slf4j:slf4j-api:2.0.16"
+    flinkShadowJar "org.slf4j:slf4j-simple:2.0.16"
+
+    runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+    runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+}
+
+sourceSets {
+    main {
+        compileClasspath += configurations.flinkShadowJar
+        runtimeClasspath += configurations.flinkShadowJar
+    }
+}
+
+application {
+    mainClass = "lab3.MainKt"
+    applicationDefaultJvmArgs = ["-Dlog4j.configurationFile=log4j2.properties"]
+}
+
+tasks.named("run", JavaExec).configure {
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "21"
+    }
+}
+
+tasks.named("shadowJar", ShadowJar).configure {
+    archiveBaseName = "flink-streaming-lab3"
+    archiveVersion = ""
+    archiveClassifier = ""
+    zip64 = true
+    mergeServiceFiles()
+    configurations = [project.configurations.flinkShadowJar]
+    manifest {
+        attributes "Main-Class": "lab3.MainKt"
+    }
+}
+
+tasks.named("jar").configure {
+    enabled = false
+}
+
+tasks.named("assemble").configure {
+    dependsOn tasks.shadowJar
+}
