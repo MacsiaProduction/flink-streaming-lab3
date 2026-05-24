@@ -11,6 +11,14 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 
+/**
+ * Three producer modes required by TODO.md:
+ *  - [NORMAL]:       send in order (event_time monotonically increases on the topic).
+ *  - [OUT_OF_ORDER]: buffer N events, send a random one ~25% of the time
+ *                    (so older event_time can appear after newer).
+ *  - [LATE_EVENTS]:  defer ~12% of events and flush them after a long delay
+ *                    (exercise the Flink `allowedLateness` path).
+ */
 enum class ProducerMode {
     NORMAL,
     OUT_OF_ORDER,

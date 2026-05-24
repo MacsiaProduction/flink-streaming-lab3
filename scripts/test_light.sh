@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Fast iteration: Kafka in Docker; Flink via Gradle (full Flink classpath) in Docker;
-# producer via shadow JAR on the host (Kafka on localhost:9094).
+# Fast iteration loop for the lab. Use this when you want to change code and
+# see windows fire without bringing up the full Flink cluster.
+#
+# Stack:  Kafka in Docker; Flink job via Gradle (gradle:8.12-jdk21 image, host
+#         networking) so any code change is picked up by the next gradle run;
+#         producer runs from the host shadow jar against localhost:9094.
+# Output: window summaries are written to ${TMPDIR}/flink-streaming-lab3-light.log
+#         (this script asserts at least one Window[ line appears).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Full stack: Kafka + Flink in Docker; job on cluster; three producer modes from host (localhost:9094).
+# Full end-to-end demo + smoke test for TODO.md.
+#
+# Stack:  Kafka + Flink JM/TM in Docker; Flink job submitted to the cluster;
+#         three producer modes run from the host against localhost:9094.
+# Output: window summaries land in the taskmanager logs as
+#         "Window[<start> - <end>]: count=<N>" lines.
+# Watch:  open http://localhost:8081 while this script runs to see the job graph.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -76,7 +82,10 @@ echo "[full] Submitting Flink job (detached)..."
 echo "[full] Waiting for job to start reading..."
 sleep 15
 
-echo "[full] Round 1: NORMAL (40 events, 400ms)"
+echo
+echo "==================================================================="
+echo "[full] Round 1/3: NORMAL  (in-order send; baseline window counts)"
+echo "==================================================================="
 java -jar "${JAR}" producer \
   --kafka localhost:9094 \
   --topic events \
@@ -88,7 +97,11 @@ sleep 28
 dump_recent_window_lines
 assert_taskmanager_has_window_line "NORMAL"
 
-echo "[full] Round 2: OUT_OF_ORDER (40 events, 400ms)"
+echo
+echo "==================================================================="
+echo "[full] Round 2/3: OUT_OF_ORDER (buffered reorder; watermark covers"
+echo "                  late arrivals within --wm 5s)"
+echo "==================================================================="
 java -jar "${JAR}" producer \
   --kafka localhost:9094 \
   --topic events \
@@ -100,7 +113,11 @@ sleep 28
 dump_recent_window_lines
 assert_taskmanager_has_window_line "OUT_OF_ORDER"
 
-echo "[full] Round 3: LATE_EVENTS (40 events; producer delays a subset ~15s)"
+echo
+echo "==================================================================="
+echo "[full] Round 3/3: LATE_EVENTS (~12% delayed by ~15s; expect already"
+echo "                  fired windows to be re-emitted via allowedLateness)"
+echo "==================================================================="
 java -jar "${JAR}" producer \
   --kafka localhost:9094 \
   --topic events \
@@ -112,4 +129,5 @@ sleep 45
 dump_recent_window_lines
 assert_taskmanager_has_window_line "LATE_EVENTS"
 
-echo "[full] OK"
+echo
+echo "[full] OK - all three TODO.md producer modes produced window output."
