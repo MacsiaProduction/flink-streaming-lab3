@@ -2,6 +2,7 @@ package lab3
 
 import kotlin.system.exitProcess
 import lab3.flink.FlinkJob
+import lab3.flink.sliding.TrueSlidingWindowJob
 import lab3.producer.EventProducer
 import lab3.producer.ProducerMode
 
@@ -11,6 +12,7 @@ private object Defaults {
     const val WINDOW_SEC = 10L
     const val LATENESS_SEC = 5L
     const val WATERMARK_SEC = 5L
+    const val TRUE_WINDOW_SEC = 1800L
     const val PRODUCER_COUNT = 40
     const val PRODUCER_INTERVAL_MS = 400L
 }
@@ -18,12 +20,14 @@ private object Defaults {
 private val USAGE =
     """
     Usage:
-      java -jar ... flink    [--kafka host:port] [--topic name] [--window sec] [--lateness sec] [--wm sec] [--rest-port port]
-      java -jar ... producer [--kafka host:port] [--topic name] [--mode NORMAL|OUT_OF_ORDER|LATE_EVENTS]
-                             [--count N] [--interval ms]
+      java -jar ... flink      [--kafka host:port] [--topic name] [--window sec] [--lateness sec] [--wm sec] [--rest-port port]
+      java -jar ... truewindow [--kafka host:port] [--topic name] [--window sec] [--wm sec]
+      java -jar ... producer   [--kafka host:port] [--topic name] [--mode NORMAL|OUT_OF_ORDER|LATE_EVENTS]
+                               [--count N] [--interval ms]
       java -jar ... help
 
     Defaults: --kafka ${Defaults.KAFKA}, --topic ${Defaults.TOPIC}.
+    `truewindow` defaults to --window ${Defaults.TRUE_WINDOW_SEC} (30 min, per EXTRA.md).
     """.trimIndent()
 
 fun main(args: Array<String>) {
@@ -32,6 +36,7 @@ fun main(args: Array<String>) {
     }
     when (args[0].lowercase()) {
         "flink" -> runFlinkCli(args.drop(1).toTypedArray())
+        "truewindow" -> runTrueWindowCli(args.drop(1).toTypedArray())
         "producer" -> runProducerCli(args.drop(1).toTypedArray())
         "help", "-h", "--help" -> exitWithUsage(0)
         else -> {
@@ -70,6 +75,32 @@ private fun runFlinkCli(args: Array<String>) {
         latenessSeconds = latenessSec,
         watermarkMaxOutOfOrderSeconds = wmSec,
         restPort = restPort,
+    )
+}
+
+private fun runTrueWindowCli(args: Array<String>) {
+    var kafka = Defaults.KAFKA
+    var topic = Defaults.TOPIC
+    var windowSec = Defaults.TRUE_WINDOW_SEC
+    var wmSec = Defaults.WATERMARK_SEC
+
+    var i = 0
+    while (i < args.size) {
+        when (val arg = args[i]) {
+            "--kafka" -> kafka = nextValue(args, ++i, arg)
+            "--topic" -> topic = nextValue(args, ++i, arg)
+            "--window" -> windowSec = nextValue(args, ++i, arg).toLong()
+            "--wm" -> wmSec = nextValue(args, ++i, arg).toLong()
+            else -> unknownArg("truewindow", arg)
+        }
+        i++
+    }
+
+    TrueSlidingWindowJob.run(
+        bootstrapServers = kafka,
+        topic = topic,
+        windowSeconds = windowSec,
+        watermarkMaxOutOfOrderSeconds = wmSec,
     )
 }
 

@@ -167,5 +167,50 @@ src/main/resources/
 - Log4j2 2.24.3 for the Flink job, slf4j-simple for the standalone producer
 - Gradle 8.12, com.github.johnrengelman.shadow 7.1.2
 
-See [EXTRA.md](EXTRA.md) for the follow-up requirement (a true 30-minute
-sliding window that fires on every event) - implemented on a separate branch.
+## EXTRA: true sliding window ([EXTRA.md](EXTRA.md))
+
+Branch goal: emit an aggregation on **every** incoming event over the events
+whose `event_time` falls in `[now - 30min, now]`, where state is incrementally
+cleaned (no event lingers in state beyond the window).
+
+Design rationale and the rejected alternatives are recorded in
+[`src/main/kotlin/lab3/flink/sliding/TrueSlidingWindowFunction.kt`](src/main/kotlin/lab3/flink/sliding/TrueSlidingWindowFunction.kt).
+Summary: `KeyedProcessFunction` + `ListState<Event>` + per-event event-time
+timers. Built-in Flink primitives only. Per-element O(N) — acceptable for the
+lab, see in-code note on bucketed `MapState` upgrade for scale.
+
+| Piece                                  | Where it lives                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Pipeline assembly (Kafka -> sliding)   | `src/main/kotlin/lab3/flink/sliding/TrueSlidingWindowJob.kt`                                                  |
+| State + per-event cleanup timers       | `src/main/kotlin/lab3/flink/sliding/TrueSlidingWindowFunction.kt`                                             |
+| CLI entry point (`truewindow`)         | `Main.runTrueWindowCli` in `src/main/kotlin/lab3/Main.kt`                                                     |
+| Demo / smoke test                      | `scripts/test_extra.sh`                                                                                       |
+
+### Run the EXTRA demo
+
+```bash
+# Full end-to-end demo: Kafka + Flink + truewindow job + NORMAL producer.
+# Uses a 30s window (vs 30min in spec) so behaviour is visible in seconds.
+./scripts/test_extra.sh
+```
+
+Or manually:
+
+```bash
+docker compose up -d
+./scripts/gradle_java21.sh --quiet shadowJar
+
+docker compose cp build/libs/flink-streaming-lab3.jar jobmanager:/tmp/job.jar
+docker compose exec -T jobmanager /opt/flink/bin/flink run -d \
+  -c lab3.MainKt /tmp/job.jar \
+  truewindow --kafka kafka:9092 --topic events --window 30 --wm 5
+
+java -jar build/libs/flink-streaming-lab3.jar producer \
+  --mode NORMAL --count 40 --interval 400
+
+docker compose logs --tail=200 taskmanager | grep 'Window\['
+```
+
+Expected shape: one `Window[start - end]: count=N` line **per produced event**,
+with `count` rising from 1 as state fills, then plateauing / falling as old
+events expire from the rolling window.
