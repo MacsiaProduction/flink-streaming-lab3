@@ -13,11 +13,6 @@ import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 /**
- * EXTRA.md job: "true" sliding window emitting on every event, with state
- * holding exactly the last [windowSeconds] of events. The Kafka source and
- * watermark setup mirror [lab3.flink.FlinkJob] so the only difference visible
- * to a reviewer is the windowing operator itself.
- *
  * Pipeline: Kafka(JSON) -> map(JSON to Event) -> assignTimestampsAndWatermarks
  *           -> keyBy(constant) -> TrueSlidingWindowFunction -> log sink.
  */

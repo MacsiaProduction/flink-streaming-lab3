@@ -24,7 +24,16 @@ readonly DEMO_EVENT_COUNT=40
 readonly DEMO_EVENT_INTERVAL_MS=400
 
 taskmanager_logs() {
-  "${COMPOSE[@]}" logs --no-color taskmanager 2>&1
+  "${COMPOSE[@]}" logs --no-color taskmanager 2>&1 || true
+}
+
+java21() {
+  docker run --rm \
+    --network host \
+    --add-host=localhost.localdomain:127.0.0.1 \
+    -v "${ROOT}:/work" \
+    eclipse-temurin:21-jre \
+    java "$@"
 }
 
 dump_recent_window_lines() {
@@ -56,7 +65,7 @@ echo "[extra] Starting Kafka + Flink..."
 cleanup() {
   "${COMPOSE[@]}" down -v >/dev/null 2>&1 || true
 }
-trap cleanup EXIT
+trap cleanup ERR INT
 
 KAFKA_TOPICS=(/opt/kafka/bin/kafka-topics.sh)
 
@@ -101,7 +110,7 @@ echo "==================================================================="
 echo "[extra] Producing ${DEMO_EVENT_COUNT} events (NORMAL, ${DEMO_EVENT_INTERVAL_MS}ms)"
 echo "        Expect: one Window[...] line per event, count climbing."
 echo "==================================================================="
-java -jar "${JAR}" producer \
+java21 -jar /work/build/libs/flink-streaming-lab3.jar producer \
   --kafka localhost:9094 \
   --topic events \
   --mode NORMAL \
@@ -117,3 +126,5 @@ assert_truewindow_accumulates
 echo
 echo "[extra] OK - truewindow emitted per-event counts that grew past 1,"
 echo "       meaning the sliding state actually accumulates events."
+echo "[extra] Cluster left running. Web UI: http://localhost:8081"
+echo "To stop: docker compose down -v"

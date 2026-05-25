@@ -12,22 +12,7 @@ import org.apache.flink.util.Collector
 /**
  * "True" sliding window over the last [windowSizeMillis] of event time.
  *
- * Built only out of Flink primitives: `KeyedProcessFunction` + `ListState` +
- * event-time timers. Compared to a sliding tumbling window:
- *  - emits on **every** incoming event, not on slide boundaries;
- *  - state holds **exactly** the events with `event_time` in
- *    `[now - windowSizeMillis, now]` at any moment;
- *  - cleanup is incremental — both on element and on per-event timers — so
- *    nothing lingers in state beyond the window.
- *
- * "now" is defined as `max(currentWatermark, incoming.eventTime)`. This keeps
- * the window from rolling backwards when a late event arrives: late events
- * still trigger an emit, but they don't pull old already-expired events back
- * into state.
- *
- * Scaling note: a `ListState<Event>` is O(N) per element. For higher
- * throughput, replace this with a `MapState<bucketMs, Long>` (bucket counts
- * over second-resolution buckets) — O(buckets) per element.
+ * `KeyedProcessFunction` + `ListState` + event-time timers.
  */
 class TrueSlidingWindowFunction(
     private val windowSizeMillis: Long,
@@ -76,9 +61,6 @@ class TrueSlidingWindowFunction(
         ctx: OnTimerContext,
         out: Collector<WindowCount>,
     ) {
-        // Watermark has advanced to >= timestamp; drop anything whose event_time
-        // is already outside the [watermark - W, watermark] window. No emit here
-        // because the spec asks for output only on event arrival.
         val windowStartMs = timestamp - windowSizeMillis
         val kept = events.get().filter { it.eventTime.toEpochMilli() >= windowStartMs }
         events.update(kept)
