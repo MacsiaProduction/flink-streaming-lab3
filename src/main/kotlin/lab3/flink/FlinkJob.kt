@@ -5,18 +5,14 @@ import java.util.UUID
 import lab3.model.Event
 import org.apache.flink.api.common.eventtime.WatermarkStrategy
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.configuration.Configuration
+import org.apache.flink.configuration.RestOptions
 import org.apache.flink.connector.kafka.source.KafkaSource
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows
 
-/**
- * Tumbling event-time window count job (TODO.md baseline).
- *
- * Pipeline: Kafka(JSON) -> map(JSON to Event) -> assignTimestampsAndWatermarks
- *           -> windowAll(tumbling event-time) with allowed lateness -> log sink.
- */
 object FlinkJob {
     private const val JOB_NAME = "lab3-event-time-tumbling-windows"
 
@@ -26,8 +22,17 @@ object FlinkJob {
         windowSeconds: Long,
         latenessSeconds: Long,
         watermarkMaxOutOfOrderSeconds: Long,
+        restPort: Int = 0,
     ) {
-        val env = StreamExecutionEnvironment.getExecutionEnvironment()
+        val env =
+            if (restPort > 0) {
+                val cfg = Configuration()
+                cfg.set(RestOptions.PORT, restPort)
+                cfg.setString("rest.bind-address", "0.0.0.0")
+                StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(cfg)
+            } else {
+                StreamExecutionEnvironment.getExecutionEnvironment()
+            }
         env.parallelism = 1
 
         val rawJson = readRawJson(env, bootstrapServers, topic)

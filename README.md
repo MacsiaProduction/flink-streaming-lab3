@@ -136,7 +136,7 @@ When `flink` is submitted **to the cluster** (as in `test_full.sh`) use
 
 ```
 build.gradle                       Kotlin/JVM + Flink + shadow jar setup
-docker-compose.yml                 Kafka (KRaft) + Flink JM/TM
+docker compose.yml                 Kafka (KRaft) + Flink JM/TM
 scripts/
   gradle_java21.sh                 run gradle inside gradle:8.12-jdk21 image
   test_full.sh                     full end-to-end demo (Kafka + Flink + 3 modes)

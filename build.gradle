@@ -24,7 +24,6 @@ configurations {
     flinkShadowJar {
         exclude group: "org.apache.flink", module: "force-shading"
         exclude group: "com.google.code.findbugs", module: "jsr305"
-        // Keep slf4j in the uber JAR so `java -jar ... producer` works outside the Flink lib/ classpath.
         exclude group: "org.apache.logging.log4j"
     }
 }
@@ -41,7 +40,6 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
     implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
-    // flink-connector-kafka marks this as `provided`; include explicitly for :run and the shadow JAR.
     implementation "org.apache.flink:flink-connector-base:${flinkVersion}"
     implementation "org.apache.flink:flink-connector-kafka:${kafkaConnectorVersion}"
 
@@ -51,6 +49,7 @@ dependencies {
     flinkShadowJar "org.slf4j:slf4j-api:2.0.16"
     flinkShadowJar "org.slf4j:slf4j-simple:2.0.16"
 
+    runtimeOnly "org.apache.flink:flink-runtime-web:${flinkVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"

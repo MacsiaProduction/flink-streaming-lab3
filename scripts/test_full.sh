@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Full end-to-end demo + smoke test for TODO.md.
-#
-# Stack:  Kafka + Flink JM/TM in Docker; Flink job submitted to the cluster;
-#         three producer modes run from the host against localhost:9094.
-# Output: window summaries land in the taskmanager logs as
-#         "Window[<start> - <end>]: count=<N>" lines.
-# Watch:  open http://localhost:8081 while this script runs to see the job graph.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,7 +10,7 @@ JAR="${ROOT}/build/libs/flink-streaming-lab3.jar"
 readonly WINDOW_LINE_PATTERN='Window\['
 
 taskmanager_logs() {
-  "${COMPOSE[@]}" logs --no-color taskmanager 2>&1
+  "${COMPOSE[@]}" logs --no-color taskmanager 2>&1 || true
 }
 
 dump_recent_window_lines() {
@@ -37,13 +30,22 @@ assert_taskmanager_has_window_line() {
 echo "[full] Building shadow JAR (JDK 21 in Docker if needed)..."
 "${ROOT}/scripts/gradle_java21.sh" --quiet shadowJar
 
+java21() {
+  docker run --rm \
+    --network host \
+    --add-host=localhost.localdomain:127.0.0.1 \
+    -v "${ROOT}:/work" \
+    eclipse-temurin:21-jre \
+    java "$@"
+}
+
 echo "[full] Starting Kafka + Flink..."
 "${COMPOSE[@]}" up -d
 
 cleanup() {
   "${COMPOSE[@]}" down -v >/dev/null 2>&1 || true
 }
-trap cleanup EXIT
+trap cleanup ERR INT
 
 KAFKA_TOPICS=(/opt/kafka/bin/kafka-topics.sh)
 
@@ -84,13 +86,13 @@ sleep 15
 
 echo
 echo "==================================================================="
-echo "[full] Round 1/3: NORMAL  (in-order send; baseline window counts)"
+echo "[full] Round 1/3: NORMAL  (in-order send; 50 events, baseline window counts)"
 echo "==================================================================="
-java -jar "${JAR}" producer \
+java21 -jar /work/build/libs/flink-streaming-lab3.jar producer \
   --kafka localhost:9094 \
   --topic events \
   --mode NORMAL \
-  --count 40 \
+  --count 50 \
   --interval 400
 
 sleep 28
@@ -102,11 +104,11 @@ echo "==================================================================="
 echo "[full] Round 2/3: OUT_OF_ORDER (buffered reorder; watermark covers"
 echo "                  late arrivals within --wm 5s)"
 echo "==================================================================="
-java -jar "${JAR}" producer \
+java21 -jar /work/build/libs/flink-streaming-lab3.jar producer \
   --kafka localhost:9094 \
   --topic events \
   --mode OUT_OF_ORDER \
-  --count 40 \
+  --count 50 \
   --interval 400
 
 sleep 28
@@ -118,11 +120,11 @@ echo "==================================================================="
 echo "[full] Round 3/3: LATE_EVENTS (~12% delayed by ~15s; expect already"
 echo "                  fired windows to be re-emitted via allowedLateness)"
 echo "==================================================================="
-java -jar "${JAR}" producer \
+java21 -jar /work/build/libs/flink-streaming-lab3.jar producer \
   --kafka localhost:9094 \
   --topic events \
   --mode LATE_EVENTS \
-  --count 40 \
+  --count 50 \
   --interval 400
 
 sleep 45
@@ -131,3 +133,5 @@ assert_taskmanager_has_window_line "LATE_EVENTS"
 
 echo
 echo "[full] OK - all three TODO.md producer modes produced window output."
+echo "[full] Cluster left running. Web UI: http://localhost:8081"
+echo "[full] To stop: docker compose down -v"

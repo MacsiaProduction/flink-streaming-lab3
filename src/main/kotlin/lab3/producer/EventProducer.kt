@@ -11,14 +11,6 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 
-/**
- * Three producer modes required by TODO.md:
- *  - [NORMAL]:       send in order (event_time monotonically increases on the topic).
- *  - [OUT_OF_ORDER]: buffer N events, send a random one ~25% of the time
- *                    (so older event_time can appear after newer).
- *  - [LATE_EVENTS]:  defer ~12% of events and flush them after a long delay
- *                    (exercise the Flink `allowedLateness` path).
- */
 enum class ProducerMode {
     NORMAL,
     OUT_OF_ORDER,
@@ -54,7 +46,6 @@ class EventProducer(
             put(ProducerConfig.LINGER_MS_CONFIG, "0")
         }
 
-    /** Strictly increasing wall-clock skew pattern; events stay in-order by event time for this mode. */
     private fun sendInOrder(
         producer: KafkaProducer<String, String>,
         count: Int,
@@ -66,10 +57,6 @@ class EventProducer(
         }
     }
 
-    /**
-     * Fills a small buffer, then sends either FIFO or a random buffered event (~25%) so older
-     * event_time values can appear after newer ones on the topic.
-     */
     private fun sendWithReorderBuffer(
         producer: KafkaProducer<String, String>,
         count: Int,
@@ -98,10 +85,6 @@ class EventProducer(
         }
     }
 
-    /**
-     * Holds a subset of events and sends them after [LATE_BATCH_DELAY_MS]. Includes a deterministic
-     * subset (every 8th index) plus random ~12% so allowed-lateness updates are likely in demos.
-     */
     private fun sendWithDeferredLateBatch(
         producer: KafkaProducer<String, String>,
         count: Int,

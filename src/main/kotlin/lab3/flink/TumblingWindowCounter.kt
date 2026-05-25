@@ -6,9 +6,6 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFuncti
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
 
-/**
- * Aggregates all events in each tumbling window into a [WindowCount] (no I/O).
- */
 class TumblingWindowCounter : ProcessAllWindowFunction<Event, WindowCount, TimeWindow>() {
     override fun process(
         context: Context,

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Fast iteration loop for the lab. Use this when you want to change code and
-# see windows fire without bringing up the full Flink cluster.
-#
-# Stack:  Kafka in Docker; Flink job via Gradle (gradle:8.12-jdk21 image, host
-#         networking) so any code change is picked up by the next gradle run;
-#         producer runs from the host shadow jar against localhost:9094.
-# Output: window summaries are written to ${TMPDIR}/flink-streaming-lab3-light.log
-#         (this script asserts at least one Window[ line appears).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,7 +8,6 @@ COMPOSE=(docker compose)
 JAR="${ROOT}/build/libs/flink-streaming-lab3.jar"
 LOG="${TMPDIR:-/tmp}/flink-streaming-lab3-light.log"
 
-# Same window line pattern as scripts/test_full.sh (Log4j INFO lines contain Window[...]).
 readonly WINDOW_LINE_PATTERN='Window\['
 
 wait_for_substring_in_file() {
@@ -77,15 +68,16 @@ echo "[light] Creating topic events (if missing)..."
 
 rm -f "${LOG}"
 echo "[light] Starting Flink job (gradle:8.12-jdk21, no wrapper download) -> ${LOG}"
+echo "[light] Flink Web UI will be at http://localhost:8081"
 docker run --rm \
-  --network host \
-  -u "$(id -u):$(id -g)" \
+  --network flink-streaming-lab3 \
+  -p 8081:8081 \
   -e GRADLE_USER_HOME=/work/.gradle \
   -v "${ROOT}:/work" -w /work \
   gradle:8.12-jdk21 \
   gradle --no-daemon \
   run \
-  --args="flink --kafka localhost:9094 --topic events --window 10 --lateness 5 --wm 5" \
+  --args="flink --kafka kafka:9092 --topic events --window 10 --lateness 5 --wm 5 --rest-port 8081" \
   >"${LOG}" 2>&1 &
 FLINK_PID=$!
 
@@ -97,12 +89,17 @@ if ! wait_for_substring_in_file "${LOG}" 'Starting split fetcher 0' 90 2; then
 fi
 sleep 3
 
-echo "[light] Producing 30 events (NORMAL, 300ms interval)..."
-java -jar "${JAR}" producer \
+echo "[light] Producing 60 events (NORMAL, 300ms interval)..."
+docker run --rm \
+  --network host \
+  --add-host=localhost.localdomain:127.0.0.1 \
+  -v "${ROOT}:/work" \
+  eclipse-temurin:21-jre \
+  java -jar /work/build/libs/flink-streaming-lab3.jar producer \
   --kafka localhost:9094 \
   --topic events \
   --mode NORMAL \
-  --count 30 \
+  --count 60 \
   --interval 300
 
 echo "[light] Waiting for windows to fire..."

@@ -8,13 +8,9 @@ import lab3.producer.ProducerMode
 private object Defaults {
     const val KAFKA = "localhost:9094"
     const val TOPIC = "events"
-
-    // Flink job
     const val WINDOW_SEC = 10L
     const val LATENESS_SEC = 5L
     const val WATERMARK_SEC = 5L
-
-    // Producer
     const val PRODUCER_COUNT = 40
     const val PRODUCER_INTERVAL_MS = 400L
 }
@@ -22,7 +18,7 @@ private object Defaults {
 private val USAGE =
     """
     Usage:
-      java -jar ... flink    [--kafka host:port] [--topic name] [--window sec] [--lateness sec] [--wm sec]
+      java -jar ... flink    [--kafka host:port] [--topic name] [--window sec] [--lateness sec] [--wm sec] [--rest-port port]
       java -jar ... producer [--kafka host:port] [--topic name] [--mode NORMAL|OUT_OF_ORDER|LATE_EVENTS]
                              [--count N] [--interval ms]
       java -jar ... help
@@ -51,6 +47,7 @@ private fun runFlinkCli(args: Array<String>) {
     var windowSec = Defaults.WINDOW_SEC
     var latenessSec = Defaults.LATENESS_SEC
     var wmSec = Defaults.WATERMARK_SEC
+    var restPort = 0
 
     var i = 0
     while (i < args.size) {
@@ -60,6 +57,7 @@ private fun runFlinkCli(args: Array<String>) {
             "--window" -> windowSec = nextValue(args, ++i, arg).toLong()
             "--lateness" -> latenessSec = nextValue(args, ++i, arg).toLong()
             "--wm" -> wmSec = nextValue(args, ++i, arg).toLong()
+            "--rest-port" -> restPort = nextValue(args, ++i, arg).toInt()
             else -> unknownArg("flink", arg)
         }
         i++
@@ -71,6 +69,7 @@ private fun runFlinkCli(args: Array<String>) {
         windowSeconds = windowSec,
         latenessSeconds = latenessSec,
         watermarkMaxOutOfOrderSeconds = wmSec,
+        restPort = restPort,
     )
 }
 
